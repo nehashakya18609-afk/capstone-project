@@ -17,3 +17,4 @@ Create a virtual environment:
 
 ```powershell
 python -m venv .venv
+## Git Workflow
