@@ -1,0 +1,20 @@
+Comparison-counting benchmark
+Data: synthetic in-memory task dictionaries
+Fields: title, priority, due_date
+Sizes: 10, 500, 3000
+Search/sort key: title
+
+Size: 10
+Insertion sort comparisons: 45
+Binary search: {'index': 0, 'comparison_count': 3}
+Linear search: {'index': 9, 'comparison_count': 10}
+
+Size: 500
+Insertion sort comparisons: 124750
+Binary search: {'index': 0, 'comparison_count': 8}
+Linear search: {'index': 499, 'comparison_count': 500}
+
+Size: 3000
+Insertion sort comparisons: 4498500
+Binary search: {'index': 0, 'comparison_count': 11}
+Linear search: {'index': 2999, 'comparison_count': 3000}
