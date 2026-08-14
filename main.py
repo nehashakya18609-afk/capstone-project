@@ -1,4 +1,5 @@
 import time
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, Request
@@ -9,7 +10,7 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base, User, Project, Task
-from schemas import TaskCreate, TaskResponse
+from schemas import TaskCreate, TaskResponse, QuickAddRequest
 
 
 # ==================================================
@@ -155,6 +156,153 @@ def linear_search(records, target_value, key):
 
     return -1
 
+
+# ==================================================
+# AI QUICK-ADD PROMPT
+# ==================================================
+
+def build_quick_add_prompt(description):
+    """
+    Build the standard role-based LLM message structure.
+
+    The current implementation uses the deterministic,
+    keyless mock parser, so these messages are not sent
+    over the network.
+    """
+
+    system_message = (
+        "You are a task parsing assistant. "
+        "Parse the user's free-text task description. "
+        "Return a task title, a priority, and a due_date_hint. "
+        "Priority must be exactly one of low, medium, or high. "
+        "The due_date_hint must be the matching raw date phrase "
+        "or null."
+    )
+
+    user_message = description
+
+    return [
+        {
+            "role": "system",
+            "content": system_message
+        },
+        {
+            "role": "user",
+            "content": user_message
+        }
+    ]
+
+
+# ==================================================
+# DETERMINISTIC AI QUICK-ADD MOCK PARSER
+# ==================================================
+
+def parse_quick_add(description):
+    """
+    Deterministic, keyless mock parser.
+
+    No network calls.
+    No API keys.
+    """
+
+    # --------------------------------------------------
+    # A. Lower-cased working copy
+    # --------------------------------------------------
+
+    working = description.lower()
+
+    # --------------------------------------------------
+    # B. Priority
+    # --------------------------------------------------
+
+    if "urgent" in working or "asap" in working:
+        priority = "high"
+
+    elif "whenever" in working or "low priority" in working:
+        priority = "low"
+
+    else:
+        priority = "medium"
+
+    # --------------------------------------------------
+    # C. Due-date hint
+    # --------------------------------------------------
+
+    date_phrases = [
+        "today",
+        "tomorrow",
+        "next week",
+
+        "next monday",
+        "next tuesday",
+        "next wednesday",
+        "next thursday",
+        "next friday",
+        "next saturday",
+        "next sunday",
+
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
+
+    due_date_hint = None
+
+    for phrase in date_phrases:
+        if phrase in working:
+            due_date_hint = phrase
+            break
+
+    # --------------------------------------------------
+    # D. Title
+    # --------------------------------------------------
+
+    # Start from original-cased description.
+    title = description
+
+    # Remove EVERY occurrence of EVERY priority keyword.
+    priority_keywords = [
+        "urgent",
+        "asap",
+        "whenever",
+        "low priority",
+    ]
+
+    for keyword in priority_keywords:
+        pattern = re.compile(
+            re.escape(keyword),
+            re.IGNORECASE
+        )
+
+        title = pattern.sub("", title)
+
+    # Remove EVERY occurrence of the matched date phrase.
+    if due_date_hint is not None:
+        pattern = re.compile(
+            re.escape(due_date_hint),
+            re.IGNORECASE
+        )
+
+        title = pattern.sub("", title)
+
+    # Trim whitespace.
+    title = title.strip()
+
+    # Never allow empty title.
+    if not title:
+        title = "Untitled task"
+
+    return {
+        "title": title,
+        "priority": priority,
+        "due_date_hint": due_date_hint,
+    }
+
+
 # ==================================================
 # COUNTING BENCHMARK FUNCTIONS
 # ==================================================
@@ -225,6 +373,8 @@ def linear_search_count(records, target_value, key):
         "index": -1,
         "comparison_count": comparison_count
     }
+
+
 # ==================================================
 # ROOT
 # ==================================================
@@ -283,6 +433,55 @@ def create_task(
         title=task_data.title,
         priority=task_data.priority,
         due_date=task_data.due_date
+    )
+
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    return task
+
+
+# ==================================================
+# TASKS - AI QUICK-ADD
+# ==================================================
+
+@app.post(
+    "/tasks/quick-add",
+    response_model=TaskResponse,
+    status_code=201
+)
+def quick_add_task(
+    request_data: QuickAddRequest,
+    db: Session = Depends(get_db)
+):
+    # Build standard system/user role-based prompt.
+    messages = build_quick_add_prompt(
+        request_data.description
+    )
+
+    # Required keyless deterministic parser.
+    parsed = parse_quick_add(
+        messages[1]["content"]
+    )
+
+    # Verify project exists.
+    project = db.query(Project).filter(
+        Project.id == request_data.project_id
+    ).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    # Create REAL database task.
+    task = Task(
+        project_id=request_data.project_id,
+        title=parsed["title"],
+        priority=parsed["priority"],
+        due_date=parsed["due_date_hint"]
     )
 
     db.add(task)
