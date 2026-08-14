@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 # ==================================================
-# TASK SCHEMA
+# TASK CREATE SCHEMA
 # ==================================================
 
 class TaskCreate(BaseModel):
@@ -26,6 +26,10 @@ class TaskCreate(BaseModel):
         return value
 
 
+# ==================================================
+# TASK RESPONSE SCHEMA
+# ==================================================
+
 class TaskResponse(BaseModel):
     id: int
     project_id: int
@@ -42,5 +46,7 @@ class TaskResponse(BaseModel):
 # ==================================================
 
 class QuickAddRequest(BaseModel):
-    description: str
+    description: str = Field(
+        min_length=1
+    )
     project_id: int

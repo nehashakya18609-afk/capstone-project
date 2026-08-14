@@ -1,6 +1,7 @@
 import time
 import re
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,7 +48,7 @@ app = FastAPI(
 
 
 # ==================================================
-# CORS CONFIGURATION
+# CORS
 # ==================================================
 
 app.add_middleware(
@@ -72,7 +73,7 @@ app.add_middleware(
 
 
 # ==================================================
-# REQUEST LOGGING MIDDLEWARE
+# REQUEST LOGGING
 # ==================================================
 
 @app.middleware("http")
@@ -108,7 +109,7 @@ def get_db():
 
 
 # ==================================================
-# SORTING ALGORITHM
+# INSERTION SORT
 # ==================================================
 
 def insertion_sort(records, key):
@@ -116,7 +117,10 @@ def insertion_sort(records, key):
         current = records[i]
         j = i - 1
 
-        while j >= 0 and records[j][key] > current[key]:
+        while (
+            j >= 0
+            and records[j][key] > current[key]
+        ):
             records[j + 1] = records[j]
             j -= 1
 
@@ -124,7 +128,7 @@ def insertion_sort(records, key):
 
 
 # ==================================================
-# BINARY SEARCH ALGORITHM
+# BINARY SEARCH
 # ==================================================
 
 def binary_search(sorted_records, target_value, key):
@@ -146,7 +150,7 @@ def binary_search(sorted_records, target_value, key):
 
 
 # ==================================================
-# LINEAR SEARCH ALGORITHM
+# LINEAR SEARCH
 # ==================================================
 
 def linear_search(records, target_value, key):
@@ -155,152 +159,6 @@ def linear_search(records, target_value, key):
             return i
 
     return -1
-
-
-# ==================================================
-# AI QUICK-ADD PROMPT
-# ==================================================
-
-def build_quick_add_prompt(description):
-    """
-    Build the standard role-based LLM message structure.
-
-    The current implementation uses the deterministic,
-    keyless mock parser, so these messages are not sent
-    over the network.
-    """
-
-    system_message = (
-        "You are a task parsing assistant. "
-        "Parse the user's free-text task description. "
-        "Return a task title, a priority, and a due_date_hint. "
-        "Priority must be exactly one of low, medium, or high. "
-        "The due_date_hint must be the matching raw date phrase "
-        "or null."
-    )
-
-    user_message = description
-
-    return [
-        {
-            "role": "system",
-            "content": system_message
-        },
-        {
-            "role": "user",
-            "content": user_message
-        }
-    ]
-
-
-# ==================================================
-# DETERMINISTIC AI QUICK-ADD MOCK PARSER
-# ==================================================
-
-def parse_quick_add(description):
-    """
-    Deterministic, keyless mock parser.
-
-    No network calls.
-    No API keys.
-    """
-
-    # --------------------------------------------------
-    # A. Lower-cased working copy
-    # --------------------------------------------------
-
-    working = description.lower()
-
-    # --------------------------------------------------
-    # B. Priority
-    # --------------------------------------------------
-
-    if "urgent" in working or "asap" in working:
-        priority = "high"
-
-    elif "whenever" in working or "low priority" in working:
-        priority = "low"
-
-    else:
-        priority = "medium"
-
-    # --------------------------------------------------
-    # C. Due-date hint
-    # --------------------------------------------------
-
-    date_phrases = [
-        "today",
-        "tomorrow",
-        "next week",
-
-        "next monday",
-        "next tuesday",
-        "next wednesday",
-        "next thursday",
-        "next friday",
-        "next saturday",
-        "next sunday",
-
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    ]
-
-    due_date_hint = None
-
-    for phrase in date_phrases:
-        if phrase in working:
-            due_date_hint = phrase
-            break
-
-    # --------------------------------------------------
-    # D. Title
-    # --------------------------------------------------
-
-    # Start from original-cased description.
-    title = description
-
-    # Remove EVERY occurrence of EVERY priority keyword.
-    priority_keywords = [
-        "urgent",
-        "asap",
-        "whenever",
-        "low priority",
-    ]
-
-    for keyword in priority_keywords:
-        pattern = re.compile(
-            re.escape(keyword),
-            re.IGNORECASE
-        )
-
-        title = pattern.sub("", title)
-
-    # Remove EVERY occurrence of the matched date phrase.
-    if due_date_hint is not None:
-        pattern = re.compile(
-            re.escape(due_date_hint),
-            re.IGNORECASE
-        )
-
-        title = pattern.sub("", title)
-
-    # Trim whitespace.
-    title = title.strip()
-
-    # Never allow empty title.
-    if not title:
-        title = "Untitled task"
-
-    return {
-        "title": title,
-        "priority": priority,
-        "due_date_hint": due_date_hint,
-    }
 
 
 # ==================================================
@@ -328,7 +186,11 @@ def insertion_sort_count(records, key):
     return comparison_count
 
 
-def binary_search_count(sorted_records, target_value, key):
+def binary_search_count(
+    sorted_records,
+    target_value,
+    key
+):
     low = 0
     high = len(sorted_records) - 1
     comparison_count = 0
@@ -357,7 +219,11 @@ def binary_search_count(sorted_records, target_value, key):
     }
 
 
-def linear_search_count(records, target_value, key):
+def linear_search_count(
+    records,
+    target_value,
+    key
+):
     comparison_count = 0
 
     for i in range(len(records)):
@@ -372,6 +238,139 @@ def linear_search_count(records, target_value, key):
     return {
         "index": -1,
         "comparison_count": comparison_count
+    }
+
+
+# ==================================================
+# AI QUICK-ADD
+# DETERMINISTIC MOCK PARSER
+# ==================================================
+
+def mock_parse_task(description: str):
+    """
+    Deterministic Task 3 parser.
+
+    It performs zero network calls and requires
+    no API key.
+    """
+
+    original = description
+    working = description.lower()
+
+    # --------------------------------------------------
+    # PRIORITY
+    # --------------------------------------------------
+
+    high_keywords = [
+        "urgent",
+        "asap"
+    ]
+
+    low_keywords = [
+        "whenever",
+        "low priority"
+    ]
+
+    if any(
+        keyword in working
+        for keyword in high_keywords
+    ):
+        priority = "high"
+
+    elif any(
+        keyword in working
+        for keyword in low_keywords
+    ):
+        priority = "low"
+
+    else:
+        priority = "medium"
+
+    # --------------------------------------------------
+    # DUE DATE
+    # --------------------------------------------------
+
+    due_date_hint = None
+
+    date_phrases = [
+        "today",
+        "tomorrow",
+        "next week",
+        "next monday",
+        "next tuesday",
+        "next wednesday",
+        "next thursday",
+        "next friday",
+        "next saturday",
+        "next sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday"
+    ]
+
+    for phrase in date_phrases:
+        if phrase in working:
+            due_date_hint = phrase
+            break
+
+    # --------------------------------------------------
+    # TITLE
+    # --------------------------------------------------
+    #
+    # Remove ALL priority keywords:
+    # urgent
+    # asap
+    # whenever
+    # low priority
+    #
+    # Also remove EVERY occurrence of the
+    # selected due-date phrase.
+    # --------------------------------------------------
+
+    title = original
+
+    priority_words_to_remove = [
+        "urgent",
+        "asap",
+        "whenever",
+        "low priority"
+    ]
+
+    for keyword in priority_words_to_remove:
+        pattern = re.compile(
+            re.escape(keyword),
+            re.IGNORECASE
+        )
+
+        title = pattern.sub(
+            "",
+            title
+        )
+
+    if due_date_hint is not None:
+        pattern = re.compile(
+            re.escape(due_date_hint),
+            re.IGNORECASE
+        )
+
+        title = pattern.sub(
+            "",
+            title
+        )
+
+    title = title.strip()
+
+    if not title:
+        title = "Untitled task"
+
+    return {
+        "title": title,
+        "priority": priority,
+        "due_date_hint": due_date_hint
     }
 
 
@@ -392,21 +391,27 @@ def root():
 
 @app.get("/frontend")
 def frontend():
-    return FileResponse(BASE_DIR / "index.html")
+    return FileResponse(
+        BASE_DIR / "index.html"
+    )
 
 
 @app.get("/styles.css")
 def styles():
-    return FileResponse(BASE_DIR / "styles.css")
+    return FileResponse(
+        BASE_DIR / "styles.css"
+    )
 
 
 @app.get("/script.js")
 def script():
-    return FileResponse(BASE_DIR / "script.js")
+    return FileResponse(
+        BASE_DIR / "script.js"
+    )
 
 
 # ==================================================
-# TASKS - CREATE
+# CREATE TASK
 # ==================================================
 
 @app.post(
@@ -443,7 +448,7 @@ def create_task(
 
 
 # ==================================================
-# TASKS - AI QUICK-ADD
+# QUICK-ADD TASK
 # ==================================================
 
 @app.post(
@@ -455,44 +460,125 @@ def quick_add_task(
     request_data: QuickAddRequest,
     db: Session = Depends(get_db)
 ):
-    # Build standard system/user role-based prompt.
-    messages = build_quick_add_prompt(
+
+    # --------------------------------------------------
+    # 1. Standard role-based prompt structure
+    # --------------------------------------------------
+
+    system_message = """
+You are a task parsing assistant.
+
+Parse the user's free-text task description into:
+- title
+- priority
+- due_date_hint
+
+Priority must be exactly one of:
+low, medium, high.
+
+Due date must be a supported date phrase
+or null.
+"""
+
+    user_message = request_data.description
+
+    prompt = [
+        {
+            "role": "system",
+            "content": system_message
+        },
+        {
+            "role": "user",
+            "content": user_message
+        }
+    ]
+
+    # The prompt structure is intentionally retained
+    # even though the default implementation uses
+    # the deterministic mock parser.
+    _ = prompt
+
+    # --------------------------------------------------
+    # 2. Deterministic mock parser
+    # --------------------------------------------------
+
+    parsed = mock_parse_task(
         request_data.description
     )
 
-    # Required keyless deterministic parser.
-    parsed = parse_quick_add(
-        messages[1]["content"]
-    )
+    title = parsed["title"]
+    priority = parsed["priority"]
+    due_date_hint = parsed["due_date_hint"]
 
-    # Verify project exists.
+    # --------------------------------------------------
+    # 3. Check project BEFORE database insert
+    # --------------------------------------------------
+
     project = db.query(Project).filter(
         Project.id == request_data.project_id
     ).first()
 
     if not project:
         raise HTTPException(
-            status_code=404,
-            detail="Project not found"
+            status_code=422,
+            detail=[
+                {
+                    "type": "value_error",
+                    "loc": [
+                        "body",
+                        "project_id"
+                    ],
+                    "msg": "Project does not exist",
+                    "input": request_data.project_id
+                }
+            ]
         )
 
-    # Create REAL database task.
-    task = Task(
+    # --------------------------------------------------
+    # 4. Validate all data BEFORE database write
+    # --------------------------------------------------
+
+    task_data = TaskCreate(
         project_id=request_data.project_id,
-        title=parsed["title"],
-        priority=parsed["priority"],
-        due_date=parsed["due_date_hint"]
+        title=title,
+        priority=priority,
+        due_date=due_date_hint
+    )
+
+    # --------------------------------------------------
+    # 5. Create actual database row
+    # --------------------------------------------------
+
+    task = Task(
+        project_id=task_data.project_id,
+        title=task_data.title,
+        priority=task_data.priority,
+        due_date=task_data.due_date
     )
 
     db.add(task)
-    db.commit()
-    db.refresh(task)
 
-    return task
+    try:
+        db.commit()
+        db.refresh(task)
+
+    except Exception:
+        db.rollback()
+        raise
+
+    # --------------------------------------------------
+    # 6. Validate final persisted object
+    # --------------------------------------------------
+
+    validated_task = TaskResponse.model_validate(
+        task
+    )
+
+    return validated_task
 
 
 # ==================================================
-# TASKS - LIST + INSERTION SORT
+# LIST TASKS + INSERTION SORT
 # ==================================================
 
 @app.get(
@@ -526,9 +612,11 @@ def list_tasks(
         }
 
         for record in records:
-            record["priority_rank"] = priority_rank[
-                record["priority"]
-            ]
+            record["priority_rank"] = (
+                priority_rank[
+                    record["priority"]
+                ]
+            )
 
         insertion_sort(
             records,
@@ -548,7 +636,7 @@ def list_tasks(
 
 
 # ==================================================
-# TASK SEARCH
+# SEARCH TASK
 # ==================================================
 
 @app.get(
@@ -571,7 +659,10 @@ def search_tasks(
         for task in tasks
     ]
 
-    # Binary Search
+    # --------------------------------------------------
+    # BINARY SEARCH
+    # --------------------------------------------------
+
     if algo == "binary":
 
         insertion_sort(
@@ -585,7 +676,10 @@ def search_tasks(
             "title"
         )
 
-    # Linear Search
+    # --------------------------------------------------
+    # LINEAR SEARCH
+    # --------------------------------------------------
+
     elif algo == "linear":
 
         index = linear_search(
@@ -622,7 +716,7 @@ def search_tasks(
 
 
 # ==================================================
-# TASKS - GET BY ID
+# GET TASK BY ID
 # ==================================================
 
 @app.get(
@@ -648,7 +742,7 @@ def get_task(
 
 
 # ==================================================
-# TASKS - UPDATE
+# UPDATE TASK
 # ==================================================
 
 @app.put(
@@ -693,7 +787,7 @@ def update_task(
 
 
 # ==================================================
-# TASKS - DELETE
+# DELETE TASK
 # ==================================================
 
 @app.delete(
@@ -723,7 +817,7 @@ def delete_task(
 
 
 # ==================================================
-# PROJECTS - CREATE
+# CREATE PROJECT
 # ==================================================
 
 @app.post(
@@ -757,7 +851,7 @@ def create_project(
 
 
 # ==================================================
-# PROJECTS - LIST
+# LIST PROJECTS
 # ==================================================
 
 @app.get(
@@ -820,7 +914,7 @@ def project_task_statistics(
 
 
 # ==================================================
-# USERS - CREATE
+# CREATE USER
 # ==================================================
 
 @app.post(
@@ -844,7 +938,7 @@ def create_user(
 
 
 # ==================================================
-# USERS - LIST
+# LIST USERS
 # ==================================================
 
 @app.get(
