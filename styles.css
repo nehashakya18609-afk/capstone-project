@@ -1,0 +1,251 @@
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f8;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Main page container */
+.container {
+    width: 90%;
+    max-width: 850px;
+    margin: 40px auto;
+}
+
+/* Persistent sticky header */
+header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+
+    text-align: center;
+    background-color: white;
+
+    padding: 20px;
+    margin-bottom: 30px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+header h1 {
+    margin-bottom: 8px;
+}
+
+header p {
+    color: #666;
+}
+
+/* Add task section */
+.task-form-section {
+    background-color: white;
+
+    /* Box model */
+    padding: 25px;
+    margin-bottom: 25px;
+    border: 2px solid #ddd;
+
+    border-radius: 10px;
+}
+
+.task-form-section h2 {
+    margin-bottom: 20px;
+}
+
+/* Form layout */
+#task-form {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.form-group {
+    flex: 1;
+    min-width: 180px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+
+    padding: 11px;
+    border: 1px solid #ccc;
+    margin-bottom: 5px;
+
+    border-radius: 6px;
+    font-size: 15px;
+}
+
+button {
+    padding: 11px 20px;
+    margin-bottom: 5px;
+
+    border: none;
+    border-radius: 6px;
+
+    background-color: #333;
+    color: white;
+
+    cursor: pointer;
+    font-size: 15px;
+}
+
+button:hover {
+    opacity: 0.85;
+}
+
+/* Task list container */
+.task-list-section {
+    background-color: white;
+
+    /* Deliberate box model */
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 2px solid #ddd;
+
+    border-radius: 10px;
+}
+
+.task-list-section h2 {
+    margin-bottom: 20px;
+}
+
+/* Individual task item */
+.task-item {
+    background-color: #fafafa;
+
+    /* Deliberate box model */
+    padding: 18px;
+    margin: 0 0 15px 0;
+    border: 1px solid #ccc;
+
+    border-radius: 8px;
+}
+
+.task-item h3 {
+    margin-bottom: 8px;
+}
+
+.task-item p {
+    margin-bottom: 5px;
+}
+
+/* ==========================================
+   BREAKPOINT 1 — TABLET
+   ========================================== */
+
+@media (max-width: 768px) {
+
+    .container {
+        width: 94%;
+        margin: 25px auto;
+    }
+
+    #task-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-group {
+        width: 100%;
+    }
+
+    button {
+        width: 100%;
+        margin-top: 5px;
+    }
+
+    .task-form-section,
+    .task-list-section {
+        padding: 20px;
+    }
+
+    header {
+        padding: 18px;
+    }
+}
+
+
+/* ==========================================
+   BREAKPOINT 2 — MOBILE
+   ========================================== */
+
+@media (max-width: 480px) {
+
+    .container {
+        width: 96%;
+        margin: 15px auto;
+    }
+
+    header {
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    header h1 {
+        font-size: 24px;
+    }
+
+    header p {
+        font-size: 14px;
+    }
+
+    .task-form-section,
+    .task-list-section {
+        padding: 15px;
+        margin-bottom: 18px;
+    }
+
+    .task-form-section h2,
+    .task-list-section h2 {
+        font-size: 20px;
+    }
+
+    .form-group input {
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    .task-item {
+        padding: 14px;
+        margin-bottom: 12px;
+    }
+
+    .task-item h3 {
+        font-size: 18px;
+    }
+
+    .task-item p {
+        font-size: 14px;
+    }
+
+    button {
+        padding: 10px;
+        font-size: 14px;
+    }
+}.task-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.task-actions button {
+    margin-bottom: 0;
+}
+.error-message {
+    color: red;
+    font-size: 14px;
+    margin-top: 5px;
+}
