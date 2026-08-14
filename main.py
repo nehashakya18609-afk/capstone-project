@@ -1,5 +1,6 @@
 
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base, User, Project, Task
 from schemas import TaskCreate, TaskResponse
+
+
+# ==================================================
+# BASE DIRECTORY
+# ==================================================
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 # ==================================================
@@ -45,8 +53,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-           "http://127.0.0.1:8000",
-
+        "http://127.0.0.1:8000",
     ],
     allow_methods=[
         "GET",
@@ -117,17 +124,17 @@ def root():
 
 @app.get("/frontend")
 def frontend():
-    return FileResponse("index.html")
+    return FileResponse(BASE_DIR / "index.html")
 
 
 @app.get("/styles.css")
 def styles():
-    return FileResponse("styles.css")
+    return FileResponse(BASE_DIR / "styles.css")
 
 
 @app.get("/script.js")
 def script():
-    return FileResponse("script.js")
+    return FileResponse(BASE_DIR / "script.js")
 
 
 # ==================================================

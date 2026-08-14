@@ -1,71 +1,120 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Manager</title>
+
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
     <main class="container">
+
         <header>
             <h1>Task Manager</h1>
             <p>Manage your tasks easily</p>
         </header>
 
+
+        <!-- ============================= -->
+        <!-- ADD TASK FORM -->
+        <!-- ============================= -->
+
         <section class="task-form-section">
+
             <h2>Add a New Task</h2>
 
             <form id="task-form">
+
+                <!-- TASK TITLE -->
+
                 <div class="form-group">
-                    <label for="title">Task Title</label>
+
+                    <label for="title">
+                        Task Title
+                    </label>
+
                     <input
                         type="text"
                         id="title"
                         name="title"
                         placeholder="Enter task title"
-                        required
                     >
-                    
-                    <p id="title-error" class="error-message"></p>
+
+                    <p
+                        id="title-error"
+                        class="error-message"
+                    ></p>
+
                 </div>
 
+
+                <!-- PRIORITY -->
+
                 <div class="form-group">
-                    <label for="priority">Priority</label>
+
+                    <label for="priority">
+                        Priority
+                    </label>
+
                     <input
                         type="text"
                         id="priority"
                         name="priority"
                         placeholder="e.g. low, medium, high"
-                        required
                     >
+
                 </div>
 
+
+                <!-- DUE DATE -->
+
                 <div class="form-group">
-                    <label for="due-date">Due Date</label>
+
+                    <label for="due-date">
+                        Due Date
+                    </label>
+
                     <input
                         type="date"
                         id="due-date"
                         name="due_date"
-                        required
                     >
+
                 </div>
 
-                <button type="submit">Add Task</button>
+
+                <!-- SUBMIT -->
+
+                <button type="submit">
+                    Add Task
+                </button>
+
             </form>
+
         </section>
 
+
+        <!-- ============================= -->
+        <!-- TASK LIST -->
+        <!-- ============================= -->
+
         <section class="task-list-section">
+
             <h2>My Tasks</h2>
 
             <div id="task-list">
                 <!-- Tasks will be rendered here -->
             </div>
+
         </section>
+
     </main>
+
+
     <script src="script.js"></script>
+
 </body>
 </html>
-

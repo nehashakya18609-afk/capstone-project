@@ -21,10 +21,6 @@ body {
 
 /* Persistent sticky header */
 header {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-
     text-align: center;
     background-color: white;
 
