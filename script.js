@@ -9,6 +9,18 @@ const titleError = document.getElementById("title-error");
 
 
 // ==========================================
+// AI ELEMENTS
+// ==========================================
+
+const aiForm = document.getElementById("ai-form");
+const aiMessage = document.getElementById("ai-message");
+const aiButton = document.getElementById("ai-button");
+const aiLoading = document.getElementById("ai-loading");
+const aiError = document.getElementById("ai-error");
+const aiResponse = document.getElementById("ai-response");
+
+
+// ==========================================
 // TITLE VALIDATION - REMOVE ERROR ON INPUT
 // ==========================================
 
@@ -120,7 +132,7 @@ function renderTasks(tasks) {
         dueDateElement.appendChild(dueDateLabel);
 
         dueDateElement.appendChild(
-            document.createTextNode(task.due_date)
+            document.createTextNode(task.due_date || "Not set")
         );
 
 
@@ -210,7 +222,7 @@ taskForm.addEventListener("submit", async (event) => {
     const newTask = {
         project_id: 1,
         title: titleInput.value.trim(),
-        priority: priorityInput.value.trim(),
+        priority: priorityInput.value.trim().toLowerCase(),
         due_date: dueDateInput.value
     };
 
@@ -218,6 +230,13 @@ taskForm.addEventListener("submit", async (event) => {
     // Check all fields
     if (!newTask.title || !newTask.priority || !newTask.due_date) {
         alert("Please fill in all fields.");
+        return;
+    }
+
+
+    // Validate priority
+    if (!["low", "medium", "high"].includes(newTask.priority)) {
+        alert("Priority must be low, medium, or high.");
         return;
     }
 
@@ -290,7 +309,7 @@ async function editTask(task) {
 
     const newDueDate = prompt(
         "Enter new due date (YYYY-MM-DD):",
-        task.due_date
+        task.due_date || ""
     );
 
 
@@ -302,7 +321,7 @@ async function editTask(task) {
     const updatedTask = {
         project_id: task.project_id,
         title: newTitle.trim(),
-        priority: newPriority.trim(),
+        priority: newPriority.trim().toLowerCase(),
         due_date: newDueDate
     };
 
@@ -314,6 +333,12 @@ async function editTask(task) {
         !updatedTask.due_date
     ) {
         alert("All fields are required.");
+        return;
+    }
+
+
+    if (!["low", "medium", "high"].includes(updatedTask.priority)) {
+        alert("Priority must be low, medium, or high.");
         return;
     }
 
@@ -397,11 +422,98 @@ async function deleteTask(taskId) {
 
 
 // ==========================================
+// TASKFLOW AI
+// ==========================================
+
+aiForm.addEventListener("submit", async (event) => {
+
+    event.preventDefault();
+
+
+    const message = aiMessage.value.trim();
+
+
+    // ==================================
+    // VALIDATION
+    // ==================================
+
+    if (!message) {
+
+        aiError.textContent =
+            "Please enter a message.";
+
+        aiMessage.focus();
+
+        return;
+    }
+
+
+    // Clear previous response/error
+    aiError.textContent = "";
+    aiResponse.textContent = "";
+    aiLoading.hidden = false;
+    aiButton.disabled = true;
+
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/ai/chat`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    message: message
+                })
+            }
+        );
+
+
+        const data = await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "AI request failed"
+            );
+        }
+
+
+        // Display AI response safely
+        aiResponse.textContent =
+            data.message || "No response received.";
+
+
+    } catch (error) {
+
+        console.error("AI ERROR:", error);
+
+        aiError.textContent =
+            "Unable to connect to TaskFlow AI. " +
+            error.message;
+
+
+    } finally {
+
+        aiLoading.hidden = true;
+        aiButton.disabled = false;
+    }
+});
+
+
+// ==========================================
 // INITIAL LOAD
 // ==========================================
 
 // Get cached tasks first
-const cachedTasks = localStorage.getItem(TASKS_CACHE_KEY);
+const cachedTasks =
+    localStorage.getItem(TASKS_CACHE_KEY);
 
 if (cachedTasks) {
 
@@ -415,9 +527,14 @@ if (cachedTasks) {
 
     } catch (error) {
 
-        console.error("Invalid cached tasks:", error);
+        console.error(
+            "Invalid cached tasks:",
+            error
+        );
 
-        localStorage.removeItem(TASKS_CACHE_KEY);
+        localStorage.removeItem(
+            TASKS_CACHE_KEY
+        );
     }
 }
 

@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Manager</title>
+
+    <title>TaskFlow - Task Manager</title>
 
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,8 +14,8 @@
     <main class="container">
 
         <header>
-            <h1>Task Manager</h1>
-            <p>Manage your tasks easily</p>
+            <h1>TaskFlow</h1>
+            <p>Manage your tasks easily with AI assistance</p>
         </header>
 
 
@@ -93,6 +94,68 @@
                 </button>
 
             </form>
+
+        </section>
+
+
+        <!-- ============================= -->
+        <!-- TASKFLOW AI -->
+        <!-- ============================= -->
+
+        <section class="ai-section">
+
+            <h2>🤖 TaskFlow AI</h2>
+
+            <p>
+                Ask AI for help with your tasks, priorities,
+                planning, or productivity.
+            </p>
+
+            <form id="ai-form">
+
+                <div class="form-group">
+
+                    <label for="ai-message">
+                        Ask TaskFlow AI
+                    </label>
+
+                    <textarea
+                        id="ai-message"
+                        name="message"
+                        rows="4"
+                        placeholder="Example: Help me plan my project tasks"
+                    ></textarea>
+
+                </div>
+
+                <button type="submit" id="ai-button">
+                    Ask AI
+                </button>
+
+            </form>
+
+            <div
+                id="ai-loading"
+                class="ai-loading"
+                hidden
+            >
+                AI is thinking...
+            </div>
+
+            <div
+                id="ai-error"
+                class="error-message"
+            ></div>
+
+            <div class="ai-response-box">
+
+                <h3>AI Response</h3>
+
+                <p id="ai-response">
+                    Your AI response will appear here.
+                </p>
+
+            </div>
 
         </section>
 
