@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +11,8 @@ from fastapi.responses import FileResponse
 
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session, sessionmaker
+
+from google import genai
 
 from models import Base, User, Project, Task
 from schemas import TaskCreate, TaskResponse, QuickAddRequest
@@ -31,7 +32,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 if not DATABASE_URL:
@@ -41,19 +42,21 @@ if not DATABASE_URL:
     )
 
 
-if not OPENAI_API_KEY:
+if not GEMINI_API_KEY:
     raise RuntimeError(
-        "OPENAI_API_KEY is not set. "
-        "Please configure OPENAI_API_KEY in Render Environment Variables."
+        "GEMINI_API_KEY is not set. "
+        "Please configure GEMINI_API_KEY in Render Environment Variables."
     )
 
 
 # ==================================================
-# OPENAI CLIENT
+# GEMINI CONFIGURATION
 # ==================================================
 
-openai_client = OpenAI(
-    api_key=OPENAI_API_KEY
+GEMINI_MODEL = "gemini-3.6-flash"
+
+gemini_client = genai.Client(
+    api_key=GEMINI_API_KEY
 )
 
 
@@ -124,7 +127,6 @@ async def log_request(
     request: Request,
     call_next
 ):
-
     start_time = time.perf_counter()
 
     response = await call_next(request)
@@ -136,8 +138,7 @@ async def log_request(
     print(
         f"{request.method} "
         f"{request.url.path} "
-        f"- {process_time:.2f} ms",
-        flush=True
+        f"- {process_time:.2f} ms"
     )
 
     return response
@@ -148,12 +149,10 @@ async def log_request(
 # ==================================================
 
 def get_db():
-
     db = SessionLocal()
 
     try:
         yield db
-
     finally:
         db.close()
 
@@ -162,14 +161,15 @@ def get_db():
 # INSERTION SORT
 # ==================================================
 
-def insertion_sort(
-    records,
-    key
-):
+def insertion_sort(records, key):
 
-    for i in range(1, len(records)):
+    for i in range(
+        1,
+        len(records)
+    ):
 
         current = records[i]
+
         j = i - 1
 
         while (
@@ -178,6 +178,7 @@ def insertion_sort(
         ):
 
             records[j + 1] = records[j]
+
             j -= 1
 
         records[j + 1] = current
@@ -198,15 +199,25 @@ def binary_search(
 
     while low <= high:
 
-        mid = (low + high) // 2
+        mid = (
+            low + high
+        ) // 2
 
-        if sorted_records[mid][key] == target_value:
+        if (
+            sorted_records[mid][key]
+            == target_value
+        ):
             return mid
 
-        if sorted_records[mid][key] < target_value:
+        if (
+            sorted_records[mid][key]
+            < target_value
+        ):
+
             low = mid + 1
 
         else:
+
             high = mid - 1
 
     return -1
@@ -222,16 +233,21 @@ def linear_search(
     key
 ):
 
-    for i in range(len(records)):
+    for i in range(
+        len(records)
+    ):
 
-        if records[i][key] == target_value:
+        if (
+            records[i][key]
+            == target_value
+        ):
             return i
 
     return -1
 
 
 # ==================================================
-# COUNTING BENCHMARK FUNCTIONS
+# COUNTING BENCHMARK
 # ==================================================
 
 def insertion_sort_count(
@@ -241,21 +257,30 @@ def insertion_sort_count(
 
     comparison_count = 0
 
-    for i in range(1, len(records)):
+    for i in range(
+        1,
+        len(records)
+    ):
 
         current = records[i]
+
         j = i - 1
 
         while j >= 0:
 
             comparison_count += 1
 
-            if records[j][key] > current[key]:
+            if (
+                records[j][key]
+                > current[key]
+            ):
 
                 records[j + 1] = records[j]
+
                 j -= 1
 
             else:
+
                 break
 
         records[j + 1] = current
@@ -276,20 +301,29 @@ def binary_search_count(
 
     while low <= high:
 
-        mid = (low + high) // 2
+        mid = (
+            low + high
+        ) // 2
 
         comparison_count += 1
 
-        if sorted_records[mid][key] == target_value:
+        if (
+            sorted_records[mid][key]
+            == target_value
+        ):
 
             return {
                 "index": mid,
-                "comparison_count": comparison_count
+                "comparison_count":
+                    comparison_count
             }
 
         comparison_count += 1
 
-        if sorted_records[mid][key] < target_value:
+        if (
+            sorted_records[mid][key]
+            < target_value
+        ):
 
             low = mid + 1
 
@@ -299,7 +333,8 @@ def binary_search_count(
 
     return {
         "index": -1,
-        "comparison_count": comparison_count
+        "comparison_count":
+            comparison_count
     }
 
 
@@ -311,20 +346,27 @@ def linear_search_count(
 
     comparison_count = 0
 
-    for i in range(len(records)):
+    for i in range(
+        len(records)
+    ):
 
         comparison_count += 1
 
-        if records[i][key] == target_value:
+        if (
+            records[i][key]
+            == target_value
+        ):
 
             return {
                 "index": i,
-                "comparison_count": comparison_count
+                "comparison_count":
+                    comparison_count
             }
 
     return {
         "index": -1,
-        "comparison_count": comparison_count
+        "comparison_count":
+            comparison_count
     }
 
 
@@ -337,7 +379,9 @@ def mock_parse_task(
 ):
 
     original = description
+
     working = description.lower()
+
 
     # --------------------------------------------------
     # PRIORITY
@@ -345,13 +389,15 @@ def mock_parse_task(
 
     high_keywords = [
         "urgent",
-        "asap"
+        "asap",
+        "high priority"
     ]
 
     low_keywords = [
         "whenever",
         "low priority"
     ]
+
 
     if any(
         keyword in working
@@ -370,6 +416,7 @@ def mock_parse_task(
     else:
 
         priority = "medium"
+
 
     # --------------------------------------------------
     # DUE DATE
@@ -397,12 +444,15 @@ def mock_parse_task(
         "sunday"
     ]
 
+
     for phrase in date_phrases:
 
         if phrase in working:
 
             due_date_hint = phrase
+
             break
+
 
     # --------------------------------------------------
     # TITLE
@@ -413,11 +463,15 @@ def mock_parse_task(
     priority_words_to_remove = [
         "urgent",
         "asap",
+        "high priority",
         "whenever",
         "low priority"
     ]
 
-    for keyword in priority_words_to_remove:
+
+    for keyword in (
+        priority_words_to_remove
+    ):
 
         pattern = re.compile(
             re.escape(keyword),
@@ -428,6 +482,7 @@ def mock_parse_task(
             "",
             title
         )
+
 
     if due_date_hint is not None:
 
@@ -441,21 +496,24 @@ def mock_parse_task(
             title
         )
 
+
     title = title.strip()
 
     if not title:
 
         title = "Untitled task"
 
+
     return {
         "title": title,
         "priority": priority,
-        "due_date_hint": due_date_hint
+        "due_date_hint":
+            due_date_hint
     }
 
 
 # ==================================================
-# AI CHAT - OPENAI
+# AI CHAT - GEMINI
 # ==================================================
 
 @app.post("/ai/chat")
@@ -466,6 +524,7 @@ def ai_chat(data: dict):
         ""
     ).strip()
 
+
     if not message:
 
         raise HTTPException(
@@ -473,44 +532,60 @@ def ai_chat(data: dict):
             detail="Message is required"
         )
 
+
+    prompt = (
+        "You are TaskFlow AI, an assistant "
+        "inside a task management application.\n\n"
+        "Help users with:\n"
+        "- tasks\n"
+        "- priorities\n"
+        "- planning\n"
+        "- productivity\n"
+        "- project management\n\n"
+        "Keep answers clear, useful and concise.\n\n"
+        f"User: {message}"
+    )
+
+
     try:
 
-        response = openai_client.responses.create(
-            model="gpt-5.6",
-            instructions=(
-                "You are TaskFlow AI, an assistant "
-                "inside a task management application. "
-                "Help users with tasks, priorities, "
-                "planning, productivity and project "
-                "management. "
-                "Keep answers clear, useful and concise."
-            ),
-            input=message
+        response = (
+            gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt
+            )
         )
 
+
+        answer = (
+            response.text
+            if response.text
+            else "I could not generate a response."
+        )
+
+
         return {
-            "message": response.output_text
+            "message": answer
         }
+
 
     except Exception as e:
 
         print(
-            "========== OPENAI ERROR ==========",
-            flush=True
+            "========== GEMINI ERROR =========="
         )
 
         print(
-            repr(e),
-            flush=True
+            repr(e)
         )
 
         print(
-            "===================================",
-            flush=True
+            "=================================="
         )
+
 
         raise HTTPException(
-            status_code=500,
+            status_code=503,
             detail="AI service is currently unavailable."
         )
 
@@ -523,7 +598,8 @@ def ai_chat(data: dict):
 def root():
 
     return {
-        "message": "TaskFlow Task API is running"
+        "message":
+            "TaskFlow Task API is running"
     }
 
 
@@ -569,9 +645,15 @@ def create_task(
     db: Session = Depends(get_db)
 ):
 
-    project = db.query(Project).filter(
-        Project.id == task_data.project_id
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id
+            == task_data.project_id
+        )
+        .first()
+    )
+
 
     if not project:
 
@@ -580,18 +662,28 @@ def create_task(
             detail="Project not found"
         )
 
+
     task = Task(
-        project_id=task_data.project_id,
-        title=task_data.title,
-        priority=task_data.priority,
-        due_date=task_data.due_date
+        project_id=
+            task_data.project_id,
+
+        title=
+            task_data.title,
+
+        priority=
+            task_data.priority,
+
+        due_date=
+            task_data.due_date
     )
+
 
     db.add(task)
 
     db.commit()
 
     db.refresh(task)
+
 
     return task
 
@@ -614,13 +706,25 @@ def quick_add_task(
         request_data.description
     )
 
-    title = parsed["title"]
-    priority = parsed["priority"]
-    due_date_hint = parsed["due_date_hint"]
 
-    project = db.query(Project).filter(
-        Project.id == request_data.project_id
-    ).first()
+    title = parsed["title"]
+
+    priority = parsed["priority"]
+
+    due_date_hint = (
+        parsed["due_date_hint"]
+    )
+
+
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id
+            == request_data.project_id
+        )
+        .first()
+    )
+
 
     if not project:
 
@@ -628,48 +732,72 @@ def quick_add_task(
             status_code=422,
             detail=[
                 {
-                    "type": "value_error",
+                    "type":
+                        "value_error",
+
                     "loc": [
                         "body",
                         "project_id"
                     ],
-                    "msg": "Project does not exist",
-                    "input": request_data.project_id
+
+                    "msg":
+                        "Project does not exist",
+
+                    "input":
+                        request_data.project_id
                 }
             ]
         )
 
+
     task_data = TaskCreate(
-        project_id=request_data.project_id,
+        project_id=
+            request_data.project_id,
+
         title=title,
+
         priority=priority,
+
         due_date=due_date_hint
     )
 
+
     task = Task(
-        project_id=task_data.project_id,
-        title=task_data.title,
-        priority=task_data.priority,
-        due_date=task_data.due_date
+        project_id=
+            task_data.project_id,
+
+        title=
+            task_data.title,
+
+        priority=
+            task_data.priority,
+
+        due_date=
+            task_data.due_date
     )
 
+
     db.add(task)
+
 
     try:
 
         db.commit()
+
         db.refresh(task)
 
     except Exception:
 
         db.rollback()
+
         raise
 
-    return TaskResponse.model_validate(task)
+
+    return task
 
 
 # ==================================================
-# LIST TASKS
+# LIST TASKS + INSERTION SORT
 # ==================================================
 
 @app.get(
@@ -682,18 +810,28 @@ def list_tasks(
     db: Session = Depends(get_db)
 ):
 
-    tasks = db.query(Task).all()
+    tasks = (
+        db.query(Task)
+        .all()
+    )
+
 
     records = [
         {
             "id": task.id,
-            "project_id": task.project_id,
-            "title": task.title,
-            "priority": task.priority,
-            "due_date": task.due_date
+            "project_id":
+                task.project_id,
+            "title":
+                task.title,
+            "priority":
+                task.priority,
+            "due_date":
+                task.due_date
         }
+
         for task in tasks
     ]
+
 
     if sort == "priority":
 
@@ -703,6 +841,7 @@ def list_tasks(
             "high": 3
         }
 
+
         for record in records:
 
             record["priority_rank"] = (
@@ -711,14 +850,19 @@ def list_tasks(
                 ]
             )
 
+
         insertion_sort(
             records,
             "priority_rank"
         )
 
+
         for record in records:
 
-            del record["priority_rank"]
+            del record[
+                "priority_rank"
+            ]
+
 
     elif sort is not None:
 
@@ -726,6 +870,7 @@ def list_tasks(
             status_code=400,
             detail="Unsupported sort option"
         )
+
 
     return records
 
@@ -745,15 +890,24 @@ def search_tasks(
     db: Session = Depends(get_db)
 ):
 
-    tasks = db.query(Task).all()
+    tasks = (
+        db.query(Task)
+        .all()
+    )
+
 
     records = [
         {
-            "id": task.id,
-            "title": task.title
+            "id":
+                task.id,
+
+            "title":
+                task.title
         }
+
         for task in tasks
     ]
+
 
     if algo == "binary":
 
@@ -762,11 +916,13 @@ def search_tasks(
             "title"
         )
 
+
         index = binary_search(
             records,
             title,
             "title"
         )
+
 
     elif algo == "linear":
 
@@ -776,25 +932,36 @@ def search_tasks(
             "title"
         )
 
+
     else:
 
         raise HTTPException(
             status_code=400,
-            detail="Algorithm must be binary or linear"
+            detail=
+                "Algorithm must be binary or linear"
         )
+
 
     if index == -1:
 
         raise HTTPException(
             status_code=404,
-            detail="Task with exact title not found"
+            detail=
+                "Task with exact title not found"
         )
+
 
     task_id = records[index]["id"]
 
-    task = db.query(Task).filter(
-        Task.id == task_id
-    ).first()
+
+    task = (
+        db.query(Task)
+        .filter(
+            Task.id == task_id
+        )
+        .first()
+    )
+
 
     if not task:
 
@@ -803,11 +970,12 @@ def search_tasks(
             detail="Task not found"
         )
 
+
     return task
 
 
 # ==================================================
-# GET TASK
+# GET TASK BY ID
 # ==================================================
 
 @app.get(
@@ -820,9 +988,14 @@ def get_task(
     db: Session = Depends(get_db)
 ):
 
-    task = db.query(Task).filter(
-        Task.id == task_id
-    ).first()
+    task = (
+        db.query(Task)
+        .filter(
+            Task.id == task_id
+        )
+        .first()
+    )
+
 
     if not task:
 
@@ -830,6 +1003,7 @@ def get_task(
             status_code=404,
             detail="Task not found"
         )
+
 
     return task
 
@@ -849,9 +1023,14 @@ def update_task(
     db: Session = Depends(get_db)
 ):
 
-    task = db.query(Task).filter(
-        Task.id == task_id
-    ).first()
+    task = (
+        db.query(Task)
+        .filter(
+            Task.id == task_id
+        )
+        .first()
+    )
+
 
     if not task:
 
@@ -860,9 +1039,16 @@ def update_task(
             detail="Task not found"
         )
 
-    project = db.query(Project).filter(
-        Project.id == task_data.project_id
-    ).first()
+
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id
+            == task_data.project_id
+        )
+        .first()
+    )
+
 
     if not project:
 
@@ -871,14 +1057,28 @@ def update_task(
             detail="Project not found"
         )
 
-    task.project_id = task_data.project_id
-    task.title = task_data.title
-    task.priority = task_data.priority
-    task.due_date = task_data.due_date
+
+    task.project_id = (
+        task_data.project_id
+    )
+
+    task.title = (
+        task_data.title
+    )
+
+    task.priority = (
+        task_data.priority
+    )
+
+    task.due_date = (
+        task_data.due_date
+    )
+
 
     db.commit()
 
     db.refresh(task)
+
 
     return task
 
@@ -896,9 +1096,14 @@ def delete_task(
     db: Session = Depends(get_db)
 ):
 
-    task = db.query(Task).filter(
-        Task.id == task_id
-    ).first()
+    task = (
+        db.query(Task)
+        .filter(
+            Task.id == task_id
+        )
+        .first()
+    )
+
 
     if not task:
 
@@ -907,12 +1112,15 @@ def delete_task(
             detail="Task not found"
         )
 
+
     db.delete(task)
 
     db.commit()
 
+
     return {
-        "message": "Task deleted successfully"
+        "message":
+            "Task deleted successfully"
     }
 
 
@@ -929,24 +1137,15 @@ def create_project(
     db: Session = Depends(get_db)
 ):
 
-    owner_id = project_data.get(
-        "owner_id"
-    )
-
-    name = project_data.get(
-        "name"
-    )
-
-    if owner_id is None or not name:
-
-        raise HTTPException(
-            status_code=400,
-            detail="name and owner_id are required"
+    owner = (
+        db.query(User)
+        .filter(
+            User.id
+            == project_data["owner_id"]
         )
+        .first()
+    )
 
-    owner = db.query(User).filter(
-        User.id == owner_id
-    ).first()
 
     if not owner:
 
@@ -955,16 +1154,22 @@ def create_project(
             detail="User not found"
         )
 
+
     project = Project(
-        name=name,
-        owner_id=owner_id
+        name=
+            project_data["name"],
+
+        owner_id=
+            project_data["owner_id"]
     )
+
 
     db.add(project)
 
     db.commit()
 
     db.refresh(project)
+
 
     return project
 
@@ -981,7 +1186,10 @@ def list_projects(
     db: Session = Depends(get_db)
 ):
 
-    return db.query(Project).all()
+    return (
+        db.query(Project)
+        .all()
+    )
 
 
 # ==================================================
@@ -997,9 +1205,14 @@ def project_task_statistics(
     db: Session = Depends(get_db)
 ):
 
-    project = db.query(Project).filter(
-        Project.id == project_id
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id
+        )
+        .first()
+    )
+
 
     if not project:
 
@@ -1008,30 +1221,52 @@ def project_task_statistics(
             detail="Project not found"
         )
 
+
     result = (
         db.query(
-            Project.id.label("project_id"),
-            Project.name.label("project_name"),
-            func.count(Task.id).label("task_count")
+            Project.id.label(
+                "project_id"
+            ),
+
+            Project.name.label(
+                "project_name"
+            ),
+
+            func.count(
+                Task.id
+            ).label(
+                "task_count"
+            )
         )
+
         .outerjoin(
             Task,
-            Task.project_id == Project.id
+            Task.project_id
+            == Project.id
         )
+
         .filter(
             Project.id == project_id
         )
+
         .group_by(
             Project.id,
             Project.name
         )
+
         .first()
     )
 
+
     return {
-        "project_id": result.project_id,
-        "project_name": result.project_name,
-        "task_count": result.task_count
+        "project_id":
+            result.project_id,
+
+        "project_name":
+            result.project_name,
+
+        "task_count":
+            result.task_count
     }
 
 
@@ -1048,42 +1283,21 @@ def create_user(
     db: Session = Depends(get_db)
 ):
 
-    name = user_data.get(
-        "name"
-    )
-
-    email = user_data.get(
-        "email"
-    )
-
-    if not name or not email:
-
-        raise HTTPException(
-            status_code=400,
-            detail="name and email are required"
-        )
-
-    existing_user = db.query(User).filter(
-        User.email == email
-    ).first()
-
-    if existing_user:
-
-        raise HTTPException(
-            status_code=409,
-            detail="Email already registered"
-        )
-
     user = User(
-        name=name,
-        email=email
+        name=
+            user_data["name"],
+
+        email=
+            user_data["email"]
     )
+
 
     db.add(user)
 
     db.commit()
 
     db.refresh(user)
+
 
     return user
 
@@ -1100,4 +1314,7 @@ def list_users(
     db: Session = Depends(get_db)
 ):
 
-    return db.query(User).all()
+    return (
+        db.query(User)
+        .all()
+    )
