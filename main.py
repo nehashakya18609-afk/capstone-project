@@ -3,7 +3,6 @@ import time
 import re
 from pathlib import Path
 
-import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -34,30 +33,37 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+
 if not DATABASE_URL:
     raise RuntimeError(
         "DATABASE_URL is not set. "
-        "Please create a .env file with DATABASE_URL."
+        "Please configure DATABASE_URL in Render Environment Variables."
+    )
+
+
+if not OPENAI_API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY is not set. "
+        "Please configure OPENAI_API_KEY in Render Environment Variables."
     )
 
 
 # ==================================================
-# OPENAI CONFIGURATION
+# OPENAI CLIENT
 # ==================================================
 
-openai_client = None
-
-if OPENAI_API_KEY:
-    openai_client = OpenAI(
-        api_key=OPENAI_API_KEY
-    )
+openai_client = OpenAI(
+    api_key=OPENAI_API_KEY
+)
 
 
 # ==================================================
 # DATABASE CONNECTION
 # ==================================================
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL
+)
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -65,7 +71,9 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(
+    bind=engine
+)
 
 
 # ==================================================
@@ -73,7 +81,8 @@ Base.metadata.create_all(bind=engine)
 # ==================================================
 
 app = FastAPI(
-    title="TaskFlow Task API"
+    title="TaskFlow Task API",
+    version="0.1.0"
 )
 
 
@@ -111,7 +120,10 @@ app.add_middleware(
 # ==================================================
 
 @app.middleware("http")
-async def log_request(request: Request, call_next):
+async def log_request(
+    request: Request,
+    call_next
+):
 
     start_time = time.perf_counter()
 
@@ -124,7 +136,8 @@ async def log_request(request: Request, call_next):
     print(
         f"{request.method} "
         f"{request.url.path} "
-        f"- {process_time:.2f} ms"
+        f"- {process_time:.2f} ms",
+        flush=True
     )
 
     return response
@@ -149,7 +162,10 @@ def get_db():
 # INSERTION SORT
 # ==================================================
 
-def insertion_sort(records, key):
+def insertion_sort(
+    records,
+    key
+):
 
     for i in range(1, len(records)):
 
@@ -218,7 +234,10 @@ def linear_search(
 # COUNTING BENCHMARK FUNCTIONS
 # ==================================================
 
-def insertion_sort_count(records, key):
+def insertion_sort_count(
+    records,
+    key
+):
 
     comparison_count = 0
 
@@ -252,6 +271,7 @@ def binary_search_count(
 
     low = 0
     high = len(sorted_records) - 1
+
     comparison_count = 0
 
     while low <= high:
@@ -312,7 +332,9 @@ def linear_search_count(
 # DETERMINISTIC TASK PARSER
 # ==================================================
 
-def mock_parse_task(description: str):
+def mock_parse_task(
+    description: str
+):
 
     original = description
     working = description.lower()
@@ -422,6 +444,7 @@ def mock_parse_task(description: str):
     title = title.strip()
 
     if not title:
+
         title = "Untitled task"
 
     return {
@@ -444,27 +467,23 @@ def ai_chat(data: dict):
     ).strip()
 
     if not message:
+
         raise HTTPException(
             status_code=400,
             detail="Message is required"
         )
 
-    if openai_client is None:
-        raise HTTPException(
-            status_code=503,
-            detail="OPENAI_API_KEY is not configured on the server."
-        )
-
     try:
 
         response = openai_client.responses.create(
-            model="gpt-4o-mini",
+            model="gpt-5.6",
             instructions=(
                 "You are TaskFlow AI, an assistant "
                 "inside a task management application. "
                 "Help users with tasks, priorities, "
                 "planning, productivity and project "
-                "management. Keep answers clear and concise."
+                "management. "
+                "Keep answers clear, useful and concise."
             ),
             input=message
         )
@@ -569,14 +588,16 @@ def create_task(
     )
 
     db.add(task)
+
     db.commit()
+
     db.refresh(task)
 
     return task
 
 
 # ==================================================
-# QUICK-ADD TASK
+# QUICK ADD TASK
 # ==================================================
 
 @app.post(
@@ -625,19 +646,11 @@ def quick_add_task(
         due_date=due_date_hint
     )
 
-    validated_data = TaskResponse(
-        id=0,
+    task = Task(
         project_id=task_data.project_id,
         title=task_data.title,
         priority=task_data.priority,
         due_date=task_data.due_date
-    )
-
-    task = Task(
-        project_id=validated_data.project_id,
-        title=validated_data.title,
-        priority=validated_data.priority,
-        due_date=validated_data.due_date
     )
 
     db.add(task)
@@ -656,7 +669,7 @@ def quick_add_task(
 
 
 # ==================================================
-# LIST TASKS + INSERTION SORT
+# LIST TASKS
 # ==================================================
 
 @app.get(
@@ -794,7 +807,7 @@ def search_tasks(
 
 
 # ==================================================
-# GET TASK BY ID
+# GET TASK
 # ==================================================
 
 @app.get(
@@ -864,6 +877,7 @@ def update_task(
     task.due_date = task_data.due_date
 
     db.commit()
+
     db.refresh(task)
 
     return task
@@ -894,6 +908,7 @@ def delete_task(
         )
 
     db.delete(task)
+
     db.commit()
 
     return {
@@ -914,8 +929,23 @@ def create_project(
     db: Session = Depends(get_db)
 ):
 
+    owner_id = project_data.get(
+        "owner_id"
+    )
+
+    name = project_data.get(
+        "name"
+    )
+
+    if owner_id is None or not name:
+
+        raise HTTPException(
+            status_code=400,
+            detail="name and owner_id are required"
+        )
+
     owner = db.query(User).filter(
-        User.id == project_data["owner_id"]
+        User.id == owner_id
     ).first()
 
     if not owner:
@@ -926,12 +956,14 @@ def create_project(
         )
 
     project = Project(
-        name=project_data["name"],
-        owner_id=project_data["owner_id"]
+        name=name,
+        owner_id=owner_id
     )
 
     db.add(project)
+
     db.commit()
+
     db.refresh(project)
 
     return project
@@ -1016,13 +1048,41 @@ def create_user(
     db: Session = Depends(get_db)
 ):
 
+    name = user_data.get(
+        "name"
+    )
+
+    email = user_data.get(
+        "email"
+    )
+
+    if not name or not email:
+
+        raise HTTPException(
+            status_code=400,
+            detail="name and email are required"
+        )
+
+    existing_user = db.query(User).filter(
+        User.email == email
+    ).first()
+
+    if existing_user:
+
+        raise HTTPException(
+            status_code=409,
+            detail="Email already registered"
+        )
+
     user = User(
-        name=user_data["name"],
-        email=user_data["email"]
+        name=name,
+        email=email
     )
 
     db.add(user)
+
     db.commit()
+
     db.refresh(user)
 
     return user
