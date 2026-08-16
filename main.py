@@ -1,7 +1,10 @@
+import os
 import time
 import re
 from pathlib import Path
-from typing import Optional
+
+import requests
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,10 +25,31 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 # ==================================================
-# DATABASE CONNECTION
+# ENVIRONMENT VARIABLES
 # ==================================================
 
-DATABASE_URL = "postgresql://postgres.ljnvxjbarkmigexidvws:radhekrishna18609@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. "
+        "Please create a .env file with DATABASE_URL."
+    )
+
+
+# ==================================================
+# OLLAMA CONFIGURATION
+# ==================================================
+
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+OLLAMA_MODEL = "llama3.2:3b"
+
+
+# ==================================================
+# DATABASE CONNECTION
+# ==================================================
 
 engine = create_engine(DATABASE_URL)
 
@@ -43,7 +67,7 @@ Base.metadata.create_all(bind=engine)
 # ==================================================
 
 app = FastAPI(
-    title="Capstone Task API"
+    title="TaskFlow Task API"
 )
 
 
@@ -55,6 +79,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://127.0.0.1:8000",
+        "http://localhost:8000",
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
     ],
     allow_methods=[
         "GET",
@@ -242,17 +269,10 @@ def linear_search_count(
 
 
 # ==================================================
-# AI QUICK-ADD
-# DETERMINISTIC MOCK PARSER
+# DETERMINISTIC TASK PARSER
 # ==================================================
 
 def mock_parse_task(description: str):
-    """
-    Deterministic Task 3 parser.
-
-    It performs zero network calls and requires
-    no API key.
-    """
 
     original = description
     working = description.lower()
@@ -320,16 +340,6 @@ def mock_parse_task(description: str):
     # --------------------------------------------------
     # TITLE
     # --------------------------------------------------
-    #
-    # Remove ALL priority keywords:
-    # urgent
-    # asap
-    # whenever
-    # low priority
-    #
-    # Also remove EVERY occurrence of the
-    # selected due-date phrase.
-    # --------------------------------------------------
 
     title = original
 
@@ -341,6 +351,7 @@ def mock_parse_task(description: str):
     ]
 
     for keyword in priority_words_to_remove:
+
         pattern = re.compile(
             re.escape(keyword),
             re.IGNORECASE
@@ -352,6 +363,7 @@ def mock_parse_task(description: str):
         )
 
     if due_date_hint is not None:
+
         pattern = re.compile(
             re.escape(due_date_hint),
             re.IGNORECASE
@@ -375,13 +387,93 @@ def mock_parse_task(description: str):
 
 
 # ==================================================
+# AI CHAT - OLLAMA
+# ==================================================
+
+@app.post("/ai/chat")
+def ai_chat(data: dict):
+
+    message = data.get(
+        "message",
+        ""
+    ).strip()
+
+    if not message:
+        raise HTTPException(
+            status_code=400,
+            detail="Message is required"
+        )
+
+    try:
+
+        prompt = (
+            "You are TaskFlow AI, an assistant "
+            "inside a task management application. "
+            "Help users with tasks, priorities, "
+            "planning, productivity and project "
+            "management. Keep answers clear and concise.\n\n"
+            f"User: {message}"
+        )
+
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=300
+        )
+
+        response.raise_for_status()
+
+        result = response.json()
+
+        return {
+            "message": result.get(
+                "response",
+                ""
+            )
+        }
+
+    except requests.exceptions.ConnectionError:
+
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Ollama is not running. "
+                "Please start Ollama and try again."
+            )
+        )
+
+    except requests.exceptions.Timeout:
+
+        raise HTTPException(
+            status_code=504,
+            detail="Ollama request timed out"
+        )
+
+    except Exception as e:
+
+        print(
+            "OLLAMA ERROR:",
+            repr(e)
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ==================================================
 # ROOT
 # ==================================================
 
 @app.get("/")
 def root():
     return {
-        "message": "Capstone Task API is running"
+        "message": "TaskFlow Task API is running"
     }
 
 
@@ -423,6 +515,7 @@ def create_task(
     task_data: TaskCreate,
     db: Session = Depends(get_db)
 ):
+
     project = db.query(Project).filter(
         Project.id == task_data.project_id
     ).first()
@@ -461,47 +554,6 @@ def quick_add_task(
     db: Session = Depends(get_db)
 ):
 
-    # --------------------------------------------------
-    # 1. Standard role-based prompt structure
-    # --------------------------------------------------
-
-    system_message = """
-You are a task parsing assistant.
-
-Parse the user's free-text task description into:
-- title
-- priority
-- due_date_hint
-
-Priority must be exactly one of:
-low, medium, high.
-
-Due date must be a supported date phrase
-or null.
-"""
-
-    user_message = request_data.description
-
-    prompt = [
-        {
-            "role": "system",
-            "content": system_message
-        },
-        {
-            "role": "user",
-            "content": user_message
-        }
-    ]
-
-    # The prompt structure is intentionally retained
-    # even though the default implementation uses
-    # the deterministic mock parser.
-    _ = prompt
-
-    # --------------------------------------------------
-    # 2. Deterministic mock parser
-    # --------------------------------------------------
-
     parsed = mock_parse_task(
         request_data.description
     )
@@ -509,10 +561,6 @@ or null.
     title = parsed["title"]
     priority = parsed["priority"]
     due_date_hint = parsed["due_date_hint"]
-
-    # --------------------------------------------------
-    # 3. Check project BEFORE database insert
-    # --------------------------------------------------
 
     project = db.query(Project).filter(
         Project.id == request_data.project_id
@@ -534,10 +582,6 @@ or null.
             ]
         )
 
-    # --------------------------------------------------
-    # 4. Validate all data BEFORE database write
-    # --------------------------------------------------
-
     task_data = TaskCreate(
         project_id=request_data.project_id,
         title=title,
@@ -545,15 +589,19 @@ or null.
         due_date=due_date_hint
     )
 
-    # --------------------------------------------------
-    # 5. Create actual database row
-    # --------------------------------------------------
-
-    task = Task(
+    validated_data = TaskResponse(
+        id=0,
         project_id=task_data.project_id,
         title=task_data.title,
         priority=task_data.priority,
         due_date=task_data.due_date
+    )
+
+    task = Task(
+        project_id=validated_data.project_id,
+        title=validated_data.title,
+        priority=validated_data.priority,
+        due_date=validated_data.due_date
     )
 
     db.add(task)
@@ -566,15 +614,7 @@ or null.
         db.rollback()
         raise
 
-    # --------------------------------------------------
-    # 6. Validate final persisted object
-    # --------------------------------------------------
-
-    validated_task = TaskResponse.model_validate(
-        task
-    )
-
-    return validated_task
+    return TaskResponse.model_validate(task)
 
 
 # ==================================================
@@ -590,6 +630,7 @@ def list_tasks(
     sort: str | None = None,
     db: Session = Depends(get_db)
 ):
+
     tasks = db.query(Task).all()
 
     records = [
@@ -612,6 +653,7 @@ def list_tasks(
         }
 
         for record in records:
+
             record["priority_rank"] = (
                 priority_rank[
                     record["priority"]
@@ -627,6 +669,7 @@ def list_tasks(
             del record["priority_rank"]
 
     elif sort is not None:
+
         raise HTTPException(
             status_code=400,
             detail="Unsupported sort option"
@@ -649,6 +692,7 @@ def search_tasks(
     algo: str = "binary",
     db: Session = Depends(get_db)
 ):
+
     tasks = db.query(Task).all()
 
     records = [
@@ -658,10 +702,6 @@ def search_tasks(
         }
         for task in tasks
     ]
-
-    # --------------------------------------------------
-    # BINARY SEARCH
-    # --------------------------------------------------
 
     if algo == "binary":
 
@@ -676,10 +716,6 @@ def search_tasks(
             "title"
         )
 
-    # --------------------------------------------------
-    # LINEAR SEARCH
-    # --------------------------------------------------
-
     elif algo == "linear":
 
         index = linear_search(
@@ -689,12 +725,14 @@ def search_tasks(
         )
 
     else:
+
         raise HTTPException(
             status_code=400,
             detail="Algorithm must be binary or linear"
         )
 
     if index == -1:
+
         raise HTTPException(
             status_code=404,
             detail="Task with exact title not found"
@@ -707,6 +745,7 @@ def search_tasks(
     ).first()
 
     if not task:
+
         raise HTTPException(
             status_code=404,
             detail="Task not found"
@@ -728,11 +767,13 @@ def get_task(
     task_id: int,
     db: Session = Depends(get_db)
 ):
+
     task = db.query(Task).filter(
         Task.id == task_id
     ).first()
 
     if not task:
+
         raise HTTPException(
             status_code=404,
             detail="Task not found"
@@ -755,11 +796,13 @@ def update_task(
     task_data: TaskCreate,
     db: Session = Depends(get_db)
 ):
+
     task = db.query(Task).filter(
         Task.id == task_id
     ).first()
 
     if not task:
+
         raise HTTPException(
             status_code=404,
             detail="Task not found"
@@ -770,6 +813,7 @@ def update_task(
     ).first()
 
     if not project:
+
         raise HTTPException(
             status_code=404,
             detail="Project not found"
@@ -798,11 +842,13 @@ def delete_task(
     task_id: int,
     db: Session = Depends(get_db)
 ):
+
     task = db.query(Task).filter(
         Task.id == task_id
     ).first()
 
     if not task:
+
         raise HTTPException(
             status_code=404,
             detail="Task not found"
@@ -828,11 +874,13 @@ def create_project(
     project_data: dict,
     db: Session = Depends(get_db)
 ):
+
     owner = db.query(User).filter(
         User.id == project_data["owner_id"]
     ).first()
 
     if not owner:
+
         raise HTTPException(
             status_code=404,
             detail="User not found"
@@ -861,6 +909,7 @@ def create_project(
 def list_projects(
     db: Session = Depends(get_db)
 ):
+
     return db.query(Project).all()
 
 
@@ -876,11 +925,13 @@ def project_task_statistics(
     project_id: int,
     db: Session = Depends(get_db)
 ):
+
     project = db.query(Project).filter(
         Project.id == project_id
     ).first()
 
     if not project:
+
         raise HTTPException(
             status_code=404,
             detail="Project not found"
@@ -925,6 +976,7 @@ def create_user(
     user_data: dict,
     db: Session = Depends(get_db)
 ):
+
     user = User(
         name=user_data["name"],
         email=user_data["email"]
@@ -948,4 +1000,5 @@ def create_user(
 def list_users(
     db: Session = Depends(get_db)
 ):
+
     return db.query(User).all()
