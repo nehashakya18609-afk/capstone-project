@@ -444,14 +444,12 @@ def ai_chat(data: dict):
     ).strip()
 
     if not message:
-
         raise HTTPException(
             status_code=400,
             detail="Message is required"
         )
 
     if openai_client is None:
-
         raise HTTPException(
             status_code=503,
             detail="OPENAI_API_KEY is not configured on the server."
@@ -459,17 +457,15 @@ def ai_chat(data: dict):
 
     try:
 
-        instructions = (
-            "You are TaskFlow AI, an assistant "
-            "inside a task management application. "
-            "Help users with tasks, priorities, "
-            "planning, productivity and project "
-            "management. Keep answers clear and concise."
-        )
-
         response = openai_client.responses.create(
             model="gpt-4o-mini",
-            instructions=instructions,
+            instructions=(
+                "You are TaskFlow AI, an assistant "
+                "inside a task management application. "
+                "Help users with tasks, priorities, "
+                "planning, productivity and project "
+                "management. Keep answers clear and concise."
+            ),
             input=message
         )
 
@@ -480,8 +476,18 @@ def ai_chat(data: dict):
     except Exception as e:
 
         print(
-            "OPENAI ERROR:",
-            repr(e)
+            "========== OPENAI ERROR ==========",
+            flush=True
+        )
+
+        print(
+            repr(e),
+            flush=True
+        )
+
+        print(
+            "===================================",
+            flush=True
         )
 
         raise HTTPException(
