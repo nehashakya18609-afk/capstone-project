@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://task-flow-rtky.onrender.com";
 const TASKS_CACHE_KEY = "tasks";
 
 const taskForm = document.getElementById("task-form");
