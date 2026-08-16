@@ -5,6 +5,7 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +32,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not DATABASE_URL:
     raise RuntimeError(
@@ -40,11 +42,15 @@ if not DATABASE_URL:
 
 
 # ==================================================
-# OLLAMA CONFIGURATION
+# OPENAI CONFIGURATION
 # ==================================================
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+openai_client = None
+
+if OPENAI_API_KEY:
+    openai_client = OpenAI(
+        api_key=OPENAI_API_KEY
+    )
 
 
 # ==================================================
@@ -82,6 +88,7 @@ app.add_middleware(
         "http://localhost:8000",
         "http://127.0.0.1:5500",
         "http://localhost:5500",
+        "https://task-flow-rtky.onrender.com",
     ],
     allow_methods=[
         "GET",
@@ -105,6 +112,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_request(request: Request, call_next):
+
     start_time = time.perf_counter()
 
     response = await call_next(request)
@@ -127,10 +135,12 @@ async def log_request(request: Request, call_next):
 # ==================================================
 
 def get_db():
+
     db = SessionLocal()
 
     try:
         yield db
+
     finally:
         db.close()
 
@@ -140,7 +150,9 @@ def get_db():
 # ==================================================
 
 def insertion_sort(records, key):
+
     for i in range(1, len(records)):
+
         current = records[i]
         j = i - 1
 
@@ -148,6 +160,7 @@ def insertion_sort(records, key):
             j >= 0
             and records[j][key] > current[key]
         ):
+
             records[j + 1] = records[j]
             j -= 1
 
@@ -158,11 +171,17 @@ def insertion_sort(records, key):
 # BINARY SEARCH
 # ==================================================
 
-def binary_search(sorted_records, target_value, key):
+def binary_search(
+    sorted_records,
+    target_value,
+    key
+):
+
     low = 0
     high = len(sorted_records) - 1
 
     while low <= high:
+
         mid = (low + high) // 2
 
         if sorted_records[mid][key] == target_value:
@@ -170,6 +189,7 @@ def binary_search(sorted_records, target_value, key):
 
         if sorted_records[mid][key] < target_value:
             low = mid + 1
+
         else:
             high = mid - 1
 
@@ -180,8 +200,14 @@ def binary_search(sorted_records, target_value, key):
 # LINEAR SEARCH
 # ==================================================
 
-def linear_search(records, target_value, key):
+def linear_search(
+    records,
+    target_value,
+    key
+):
+
     for i in range(len(records)):
+
         if records[i][key] == target_value:
             return i
 
@@ -193,18 +219,23 @@ def linear_search(records, target_value, key):
 # ==================================================
 
 def insertion_sort_count(records, key):
+
     comparison_count = 0
 
     for i in range(1, len(records)):
+
         current = records[i]
         j = i - 1
 
         while j >= 0:
+
             comparison_count += 1
 
             if records[j][key] > current[key]:
+
                 records[j + 1] = records[j]
                 j -= 1
+
             else:
                 break
 
@@ -218,16 +249,19 @@ def binary_search_count(
     target_value,
     key
 ):
+
     low = 0
     high = len(sorted_records) - 1
     comparison_count = 0
 
     while low <= high:
+
         mid = (low + high) // 2
 
         comparison_count += 1
 
         if sorted_records[mid][key] == target_value:
+
             return {
                 "index": mid,
                 "comparison_count": comparison_count
@@ -236,8 +270,11 @@ def binary_search_count(
         comparison_count += 1
 
         if sorted_records[mid][key] < target_value:
+
             low = mid + 1
+
         else:
+
             high = mid - 1
 
     return {
@@ -251,12 +288,15 @@ def linear_search_count(
     target_value,
     key
 ):
+
     comparison_count = 0
 
     for i in range(len(records)):
+
         comparison_count += 1
 
         if records[i][key] == target_value:
+
             return {
                 "index": i,
                 "comparison_count": comparison_count
@@ -295,15 +335,18 @@ def mock_parse_task(description: str):
         keyword in working
         for keyword in high_keywords
     ):
+
         priority = "high"
 
     elif any(
         keyword in working
         for keyword in low_keywords
     ):
+
         priority = "low"
 
     else:
+
         priority = "medium"
 
     # --------------------------------------------------
@@ -333,7 +376,9 @@ def mock_parse_task(description: str):
     ]
 
     for phrase in date_phrases:
+
         if phrase in working:
+
             due_date_hint = phrase
             break
 
@@ -387,7 +432,7 @@ def mock_parse_task(description: str):
 
 
 # ==================================================
-# AI CHAT - OLLAMA
+# AI CHAT - OPENAI
 # ==================================================
 
 @app.post("/ai/chat")
@@ -399,70 +444,49 @@ def ai_chat(data: dict):
     ).strip()
 
     if not message:
+
         raise HTTPException(
             status_code=400,
             detail="Message is required"
         )
 
+    if openai_client is None:
+
+        raise HTTPException(
+            status_code=503,
+            detail="OPENAI_API_KEY is not configured on the server."
+        )
+
     try:
 
-        prompt = (
+        instructions = (
             "You are TaskFlow AI, an assistant "
             "inside a task management application. "
             "Help users with tasks, priorities, "
             "planning, productivity and project "
-            "management. Keep answers clear and concise.\n\n"
-            f"User: {message}"
+            "management. Keep answers clear and concise."
         )
 
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False
-            },
-            timeout=300
+        response = openai_client.responses.create(
+            model="gpt-4o-mini",
+            instructions=instructions,
+            input=message
         )
-
-        response.raise_for_status()
-
-        result = response.json()
 
         return {
-            "message": result.get(
-                "response",
-                ""
-            )
+            "message": response.output_text
         }
-
-    except requests.exceptions.ConnectionError:
-
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Ollama is not running. "
-                "Please start Ollama and try again."
-            )
-        )
-
-    except requests.exceptions.Timeout:
-
-        raise HTTPException(
-            status_code=504,
-            detail="Ollama request timed out"
-        )
 
     except Exception as e:
 
         print(
-            "OLLAMA ERROR:",
+            "OPENAI ERROR:",
             repr(e)
         )
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="AI service is currently unavailable."
         )
 
 
@@ -472,6 +496,7 @@ def ai_chat(data: dict):
 
 @app.get("/")
 def root():
+
     return {
         "message": "TaskFlow Task API is running"
     }
@@ -483,6 +508,7 @@ def root():
 
 @app.get("/frontend")
 def frontend():
+
     return FileResponse(
         BASE_DIR / "index.html"
     )
@@ -490,6 +516,7 @@ def frontend():
 
 @app.get("/styles.css")
 def styles():
+
     return FileResponse(
         BASE_DIR / "styles.css"
     )
@@ -497,6 +524,7 @@ def styles():
 
 @app.get("/script.js")
 def script():
+
     return FileResponse(
         BASE_DIR / "script.js"
     )
@@ -521,6 +549,7 @@ def create_task(
     ).first()
 
     if not project:
+
         raise HTTPException(
             status_code=404,
             detail="Project not found"
@@ -567,6 +596,7 @@ def quick_add_task(
     ).first()
 
     if not project:
+
         raise HTTPException(
             status_code=422,
             detail=[
@@ -607,10 +637,12 @@ def quick_add_task(
     db.add(task)
 
     try:
+
         db.commit()
         db.refresh(task)
 
     except Exception:
+
         db.rollback()
         raise
 
@@ -666,6 +698,7 @@ def list_tasks(
         )
 
         for record in records:
+
             del record["priority_rank"]
 
     elif sort is not None:
